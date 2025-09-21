@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Translator Demo</title>
+</head>
+<body>
+
+<h2>1️⃣ Record Your Voice</h2>
+<button id="recordBtn">Start Recording</button>
+<audio id="audioPlayback" controls></audio>
+<button id="downloadBtn" style="display:none;">Download Recording</button>
+
+<h2>2️⃣ Upload & Transcribe</h2>
+<input type="file" id="audioUpload" accept="audio/*">
+<button id="transcribeBtn">Transcribe</button>
+<p>Transcript:</p>
+<textarea id="transcript" rows="4" cols="50"></textarea>
+
+<h2>3️⃣ Translate & Generate Speech</h2>
+<select id="langSelect">
+    <option value="en">English</option>
+    <option value="hi">Hindi</option>
+    <option value="es">Spanish</option>
+    <!-- Add more languages as needed -->
+</select>
+<button id="ttsBtn">Translate & Generate Speech</button>
+<audio id="ttsAudio" controls></audio>
+<a id="downloadTTS" style="display:none;">Download TTS</a>
+
+<script>
+let recordBtn = document.getElementById('recordBtn');
+let audioPlayback = document.getElementById('audioPlayback');
+let downloadBtn = document.getElementById('downloadBtn');
+
+let mediaRecorder;
+let audioChunks = [];
+
+// ---------------- Record & Download ----------------
+recordBtn.addEventListener('click', async () => {
+    if (recordBtn.textContent === "Start Recording") {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+
+        mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            audioPlayback.src = audioUrl;
+
+            downloadBtn.style.display = 'inline';
+            downloadBtn.onclick = () => {
+                const link = document.createElement('a');
+                link.href = audioUrl;
+                link.download = 'recording.wav';
+                link.click();
+            };
+        };
+
+        mediaRecorder.start();
+        recordBtn.textContent = "Stop Recording";
+    } else {
+        mediaRecorder.stop();
+        recordBtn.textContent = "Start Recording";
+    }
+});
+
+// ---------------- Upload & Transcribe ----------------
+const uploadInput = document.getElementById('audioUpload');
+const transcribeBtn = document.getElementById('transcribeBtn');
+const transcriptArea = document.getElementById('transcript');
+
+transcribeBtn.addEventListener('click', async () => {
+    const file = uploadInput.files[0];
+    if (!file) { alert("Upload a file!"); return; }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/transcribe', { method: 'POST', body: formData });
+    const result = await response.json();
+    transcriptArea.value = result.text;
+});
+
+// ---------------- Translate & Generate TTS ----------------
+const ttsBtn = document.getElementById('ttsBtn');
+const langSelect = document.getElementById('langSelect');
+const ttsAudio = document.getElementById('ttsAudio');
+const downloadTTS = document.getElementById('downloadTTS');
+
+ttsBtn.addEventListener('click', async () => {
+    const text = transcriptArea.value;
+    const lang = langSelect.value;
+    if (!text) { alert("No text to convert!"); return; }
+
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('lang', lang);
+
+    const response = await fetch('/translate_tts', { method: 'POST', body: formData });
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+
+    ttsAudio.src = url;
+    downloadTTS.href = url;
+    downloadTTS.download = 'tts_speech.mp3';
+    downloadTTS.style.display = 'inline';
+});
+</script>
+
+</body>
+</html>
