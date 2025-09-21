@@ -22,10 +22,10 @@ model = WhisperModel("small", compute_type="float32")
 
 @app.route("/")
 def index():
-    # serve index.html saved next to this file
+    
     return send_file(os.path.join(BASE_DIR, "index.html"))
 
-# Transcribe endpoint (matches your front-end which sends 'file')
+# Transcribe endpoint
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
     try:
@@ -51,7 +51,7 @@ def transcribe():
         return jsonify({"error": str(e)}), 500
 
 
-# Translate + TTS endpoint (frontend posts 'text' and 'lang')
+# Translate + TTS endpoint
 @app.route("/translate_tts", methods=["POST"])
 def translate_tts():
     text = request.form.get("text")
@@ -72,7 +72,7 @@ def translate_tts():
     # Return the audio file directly (frontend expects a blob)
     return send_file(tts_path, mimetype="audio/mpeg", as_attachment=False)
 
-# Optional: download route if you want to fetch by URL later
+# Download endpoint
 @app.route("/download/<filename>")
 def download(filename):
     safe = secure_filename(filename)
@@ -82,5 +82,5 @@ def download(filename):
     return send_file(full, mimetype="audio/mpeg", as_attachment=False)
 
 if __name__ == "__main__":
-    # debug=False avoids PIN / extra logs
+    
     app.run(host="127.0.0.1", port=5000, debug=False)

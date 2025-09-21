@@ -5,6 +5,7 @@
 </head>
 <body>
 
+<h1 style = "text-align: center;">CommUnique</h1>
 <h2>1️⃣ Record Your Voice</h2>
 <button id="recordBtn">Start Recording</button>
 <audio id="audioPlayback" controls></audio>
@@ -41,7 +42,7 @@
     <option value="kn">Kannada</option>
     <option value="ne">Nepali</option>
     
-    <!-- Add more languages as needed -->
+    
 </select>
 <button id="ttsBtn">Translate & Generate Speech</button>
 <audio id="ttsAudio" controls></audio>
@@ -99,7 +100,7 @@ async function uploadAndTranscribe() {
     }
 
     const formData = new FormData();
-    formData.append('file', file); // must match Flask
+    formData.append('file', file); 
 
     try {
         const response = await fetch('/transcribe', { method: 'POST', body: formData });
