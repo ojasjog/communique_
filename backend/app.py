@@ -1,55 +1,86 @@
+# app.py
 from flask import Flask, request, jsonify, send_file
-import os
-import subprocess
+from flask_cors import CORS
+from deep_translator import GoogleTranslator
 from gtts import gTTS
-from googletrans import Translator
+from faster_whisper import WhisperModel
+from werkzeug.utils import secure_filename
+import os
+import uuid
 
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'tts_output'
+app = Flask(__name__, static_folder=None)
+CORS(app)
 
+BASE_DIR = os.path.dirname(__file__)
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "outputs")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-app = Flask(__name__)
+# Load Whisper model once (force float32 for CPU)
+model = WhisperModel("small", compute_type="float32")
 
-translator = Translator()
+@app.route("/")
+def index():
+    # serve index.html saved next to this file
+    return send_file(os.path.join(BASE_DIR, "index.html"))
 
-# ------------------ Transcription ------------------
+# Transcribe endpoint (matches your front-end which sends 'file')
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
-    file = request.files['file']
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    file.save(file_path)
+    try:
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
 
-    # Whisper CLI transcription
-    subprocess.run(
-        ["whisper", file_path, "--model", "base", "--output_format", "txt"],
-        capture_output=True
-    )
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "Empty filename"}), 400
 
-    txt_file_path = file_path.rsplit(".", 1)[0] + ".txt"
-    with open(txt_file_path, "r") as f:
-        text = f.read()
+        from werkzeug.utils import secure_filename
+        import uuid
 
-    return jsonify({"text": text})
+        filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
 
-# ------------------ Translation + TTS ------------------
+        segments, _ = model.transcribe(filepath)
+        text = " ".join([seg.text.strip() for seg in segments]).strip()
+
+        return jsonify({"text": text})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# Translate + TTS endpoint (frontend posts 'text' and 'lang')
 @app.route("/translate_tts", methods=["POST"])
 def translate_tts():
     text = request.form.get("text")
-    target_lang = request.form.get("lang", "en")  # default to English
+    target_lang = request.form.get("lang", "en")
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
     # Translate
-    translated = translator.translate(text, dest=target_lang).text
+    translated = GoogleTranslator(source="auto", target=target_lang).translate(text)
 
-    # TTS
-    tts_file = os.path.join(OUTPUT_FOLDER, "speech.mp3")
-    tts = gTTS(text=translated, lang=target_lang)
-    tts.save(tts_file)
+    # Create unique tts filename
+    tts_filename = f"tts_{uuid.uuid4().hex}.mp3"
+    tts_path = os.path.join(OUTPUT_FOLDER, tts_filename)
 
-    return send_file(tts_file, as_attachment=True)
+    # Generate TTS
+    gTTS(translated, lang=target_lang).save(tts_path)
+
+    # Return the audio file directly (frontend expects a blob)
+    return send_file(tts_path, mimetype="audio/mpeg", as_attachment=False)
+
+# Optional: download route if you want to fetch by URL later
+@app.route("/download/<filename>")
+def download(filename):
+    safe = secure_filename(filename)
+    full = os.path.join(OUTPUT_FOLDER, safe)
+    if not os.path.exists(full):
+        return "Not found", 404
+    return send_file(full, mimetype="audio/mpeg", as_attachment=False)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # debug=False avoids PIN / extra logs
+    app.run(host="127.0.0.1", port=5000, debug=False)

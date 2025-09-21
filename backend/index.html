@@ -71,17 +71,35 @@ const uploadInput = document.getElementById('audioUpload');
 const transcribeBtn = document.getElementById('transcribeBtn');
 const transcriptArea = document.getElementById('transcript');
 
-transcribeBtn.addEventListener('click', async () => {
+async function uploadAndTranscribe() {
     const file = uploadInput.files[0];
-    if (!file) { alert("Upload a file!"); return; }
+    if (!file) { 
+        alert("Please select a file first"); 
+        return; 
+    }
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', file); // must match Flask
 
-    const response = await fetch('/transcribe', { method: 'POST', body: formData });
-    const result = await response.json();
-    transcriptArea.value = result.text;
-});
+    try {
+        const response = await fetch('/transcribe', { method: 'POST', body: formData });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            alert("Server error: " + (err.error || response.status));
+            return;
+        }
+
+        const data = await response.json();
+        transcriptArea.value = data.text || "";
+
+    } catch (err) {
+        console.error("Upload/transcribe failed", err);
+        alert("Network error: " + err.message);
+    }
+}
+
+transcribeBtn.addEventListener('click', uploadAndTranscribe);
 
 // ---------------- Translate & Generate TTS ----------------
 const ttsBtn = document.getElementById('ttsBtn');
@@ -98,14 +116,26 @@ ttsBtn.addEventListener('click', async () => {
     formData.append('text', text);
     formData.append('lang', lang);
 
-    const response = await fetch('/translate_tts', { method: 'POST', body: formData });
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
+    try {
+        const response = await fetch('/translate_tts', { method: 'POST', body: formData });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            alert("Server error: " + (err.error || response.status));
+            return;
+        }
 
-    ttsAudio.src = url;
-    downloadTTS.href = url;
-    downloadTTS.download = 'tts_speech.mp3';
-    downloadTTS.style.display = 'inline';
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+
+        ttsAudio.src = url;
+        downloadTTS.href = url;
+        downloadTTS.download = 'tts_speech.mp3';
+        downloadTTS.style.display = 'inline';
+
+    } catch (err) {
+        console.error("TTS failed", err);
+        alert("Network error: " + err.message);
+    }
 });
 </script>
 
