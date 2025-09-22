@@ -1,175 +1,694 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>CommUnique - Voice Translator</title>
-<style>
-body { font-family: Arial, sans-serif; text-align:center; padding:20px; background:#0072ff; color:#fff;}
-h1 { font-size:2.5em; margin-bottom:10px;}
-p { max-width: 600px; margin: 0 auto 20px auto; }
-.card { background: rgba(255,255,255,0.1); padding:20px; margin:15px auto; border-radius:15px; max-width:600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
-button { padding:10px 20px; margin:5px; font-size:1em; border-radius:8px; border:none; cursor:pointer; background:#00ffd5; color:#000; font-weight:bold; transition: background-color 0.2s;}
-button:hover { background:#00ffa5;}
-button:disabled { background: #ccc; cursor: not-allowed; }
-textarea { padding:10px; margin:10px 0; width:95%; border-radius:8px; border:none; background: rgba(255,255,255,0.9); color: #333;}
-audio { margin-top:10px; width:100%;}
-#recordBtn.recording { background-color: #ff4757; color: white;}
-#recordBtn.recording:hover { background-color: #e03b4a; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CommUnique - Voice Translator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* 1. CSS VARIABLES & THEME SETUP */
+        :root {
+            --bg-color: #f4f7f9;
+            --card-bg-color: #ffffff;
+            --text-color: #2c3e50;
+            --text-secondary-color: #576c7f;
+            --accent-color: #3498db;
+            --accent-hover-color: #2980b9;
+            --record-color: #e74c3c;
+            --record-hover-color: #c0392b;
+            --border-color: #e1e8ed;
+            --shadow-color: rgba(44, 62, 80, 0.1);
+            --spinner-color: var(--accent-color);
+            --theme-toggle-bg: #e1e8ed;
+            --spotlight-color: rgba(0, 0, 0, 0.05);
+            --input-bg-color: #eaf1f6;
+            --input-border-color: #d1d8df;
+        }
+
+        body.dark-mode {
+            --bg-color: #1c2128;
+            --card-bg-color: #22272e;
+            --text-color: #cdd9e5;
+            --text-secondary-color: #90a0b1;
+            --accent-color: #40a2f5;
+            --accent-hover-color: #52a9f7;
+            --record-color: #e74c3c;
+            --record-hover-color: #c0392b;
+            --border-color: #373e47;
+            --shadow-color: rgba(10, 10, 10, 0.2);
+            --spinner-color: var(--accent-color);
+            --theme-toggle-bg: #373e47;
+            --spotlight-color: rgba(255, 255, 255, 0.07);
+            --input-bg-color: #2d333b;
+            --input-border-color: #444c56;
+        }
+
+        /* 2. BASE STYLES & LAYOUT */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            color: var(--text-color);
+            text-align: center;
+            padding: 2rem 1rem;
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            
+            --mouse-x: 50%;
+            --mouse-y: 50%;
+            background: radial-gradient(
+                600px circle at var(--mouse-x) var(--mouse-y),
+                var(--spotlight-color),
+                transparent 40%
+            ), var(--bg-color);
+        }
+
+        main {
+            width: 100%;
+            max-width: 650px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 700;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+
+        p {
+            color: var(--text-secondary-color);
+            margin-bottom: 1.5rem;
+        }
+
+        .card {
+            background-color: var(--card-bg-color);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px var(--shadow-color);
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s, border-color 0.3s;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 3. UI ELEMENT STYLES */
+        button, select {
+            font-family: inherit;
+            font-size: 1rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            font-weight: 600;
+        }
+
+        select {
+            background-color: var(--input-bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--input-border-color);
+            margin-right: 0.5rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23576c7f'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.25em 1.25em;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            white-space: nowrap;
+        }
+        
+        button:hover {
+            background-color: var(--accent-hover-color);
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: var(--text-secondary-color);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #recordBtn.recording {
+            background-color: var(--record-color);
+            animation: pulse 1.5s infinite;
+        }
+        #recordBtn.recording:hover {
+            background-color: var(--record-hover-color);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+        }
+
+        textarea {
+            width: 100%;
+            padding: 1rem;
+            margin-top: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--input-border-color);
+            background-color: var(--input-bg-color);
+            color: var(--text-color);
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        /* 4. LOADER & THEME TOGGLE */
+        #loader {
+            display: none;
+            border: 6px solid var(--border-color);
+            border-top: 6px solid var(--spinner-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #theme-toggle {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: var(--theme-toggle-bg);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            padding: 0;
+            font-size: 1.5rem;
+            line-height: 1;
+            display: grid;
+            place-content: center;
+            z-index: 3;
+            box-shadow: 0 4px 12px var(--shadow-color);
+            transition: background 0.3s;
+        }
+        
+        /* New: Emoji for theme toggle */
+        #theme-toggle::before {
+            content: '☀️';
+            transition: content 0.3s;
+        }
+
+        body.dark-mode #theme-toggle::before {
+            content: '🌙';
+        }
+
+        /* 5. CUSTOM AUDIO PLAYER STYLES */
+        .audio-player-container {
+            margin-top: 1rem;
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .audio-player {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 50px;
+            background-color: var(--input-bg-color);
+            border: 1px solid var(--input-border-color);
+            width: 100%;
+            transition: background-color 0.3s, border-color 0.3s;
+            position: relative;
+        }
+
+        .audio-player.hidden {
+            display: none;
+        }
+
+        #playPauseBtn, .player-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            transition: transform 0.2s, opacity 0.2s;
+            background-size: 24px 24px;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        
+        .player-btn:hover {
+            opacity: 0.7;
+        }
+
+        #playPauseBtn.play-btn {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233498db'%3E%3Cpath d='M8 5v14l11-7z'/%3E%3C/svg%3E");
+        }
+
+        #playPauseBtn.pause-btn {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233498db'%3E%3Cpath d='M6 19h4V5H6v14zm8-14v14h4V5h-4z'/%3E%3C/svg%3E");
+        }
+        
+        #volumeBtn {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23576c7f'%3E%3Cpath d='M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.74 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89.81 5 3.54 5 6.71s-2.11 5.9-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z'/%3E%3C/svg%3E");
+        }
+        
+        #speedBtn {
+            color: var(--text-secondary-color);
+            font-size: 0.9rem;
+            font-weight: 600;
+            width: auto;
+            min-width: 40px;
+            padding: 0 0.5rem;
+            transition: color 0.2s;
+        }
+        
+        #speedBtn:hover {
+            color: var(--text-color);
+        }
+
+        body.dark-mode #playPauseBtn.play-btn {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2340a2f5'%3E%3Cpath d='M8 5v14l11-7z'/%3E%3C/svg%3E");
+        }
+
+        body.dark-mode #playPauseBtn.pause-btn {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2340a2f5'%3E%3Cpath d='M6 19h4V5H6v14zm8-14v14h4V5h-4z'/%3E%3C/svg%3E");
+        }
+        
+        body.dark-mode #volumeBtn {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2390a0b1'%3E%3Cpath d='M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.74 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89.81 5 3.54 5 6.71s-2.11 5.9-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z'/%3E%3C/svg%3E");
+        }
+        
+        #playPauseBtn:hover {
+            transform: scale(1.1);
+        }
+
+        .progress-bar-container {
+            flex-grow: 1;
+            height: 8px;
+            background-color: var(--border-color);
+            border-radius: 4px;
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #progressBar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #5DADE2, #3498DB);
+            border-radius: 4px;
+            transition: width 0.1s linear;
+        }
+        body.dark-mode #progressBar {
+            background: linear-gradient(90deg, #85C1E9, #40A2F5);
+        }
+
+        #progressHandle {
+            position: absolute;
+            top: 50%;
+            left: 0%;
+            transform: translate(-50%, -50%);
+            width: 16px;
+            height: 16px;
+            background-color: var(--accent-color);
+            border: 2px solid var(--card-bg-color);
+            border-radius: 50%;
+            transition: left 0.1s linear, background-color 0.3s, border-color 0.3s, box-shadow 0.2s;
+            pointer-events: none;
+            box-shadow: 0 2px 8px var(--shadow-color);
+        }
+        
+        .progress-bar-container:hover #progressHandle {
+            box-shadow: 0 4px 12px var(--shadow-color);
+        }
+
+        #currentTime, #duration {
+            font-size: 0.9rem;
+            white-space: nowrap;
+            color: var(--text-secondary-color);
+        }
+        
+        .volume-controls {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: 10px;
+            background-color: var(--card-bg-color);
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            border-radius: 12px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 4px 12px var(--shadow-color);
+            z-index: 10;
+        }
+        
+        .volume-controls.visible {
+            display: flex;
+        }
+
+        #volumeSlider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100px;
+            height: 8px;
+            background: var(--input-bg-color);
+            border-radius: 4px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        #volumeSlider:hover {
+            opacity: 1;
+        }
+
+        #volumeSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #volumeSlider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
 
-<h1>CommUnique 🎤</h1>
-<p>Record your voice, get an instant transcription, and translate it into multiple languages with text-to-speech output.</p>
+    <main>
+        <header>
+            <h1>CommUnique 🗣️</h1>
+            <p>Your instant voice translator.</p>
+            <button id="theme-toggle" aria-label="Toggle theme"></button>
+        </header>
+        
+        <section class="card">
+            <h2>1. Select Language & Record</h2>
+            <p>Choose your target language, then press the record button to begin.</p>
+            <div>
+                <select id="langSelect" aria-label="Select target language">
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="fr">French</option>
+                    <option value="es">Spanish</option>
+                    <option value="de">German</option>
+                    <option value="it">Italian</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="ta">Tamil</option>
+                    <option value="ru">Russian</option>
+                    <option value="ar">Arabic</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="bn">Bengali</option>
+                    <option value="tr">Turkish</option>
+                    <option value="vi">Vietnamese</option>
+                    <option value="pl">Polish</option>
+                    <option value="nl">Dutch</option>
+                </select>
+                <button id="recordBtn">Start Recording</button>
+            </div>
+            <div id="loader"></div>
+            <p id="status" style="margin-top: 1rem; min-height: 1.6em;"></p>
+        </section>
 
-<div class="card">
-<h2>1. Speak </h2>
-<button id="recordBtn">Start Recording</button>
-<p id="status" style="margin-top: 10px;"></p>
-<audio id="audioPlayback" controls></audio>
-</div>
+        <section class="card">
+            <h2>2. Your Translation</h2>
+            <textarea id="translatedText" rows="4" placeholder="Translated text will appear here..." readonly aria-live="polite"></textarea>
+            
+            <div class="audio-player-container">
+                <div id="custom-audio-player" class="audio-player hidden">
+                    <button id="playPauseBtn" class="play-btn player-btn" aria-label="Play/Pause"></button>
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar"></div>
+                        <div id="progressHandle" class="progress-handle"></div>
+                    </div>
+                    <span id="currentTime">0:00</span> / <span id="duration">0:00</span>
+                    
+                    <button id="speedBtn" class="player-btn">1x</button>
+                    <div style="position: relative;">
+                        <button id="volumeBtn" class="player-btn" aria-label="Volume"></button>
+                        <div id="volumeControls" class="volume-controls">
+                            <input type="range" id="volumeSlider" min="0" max="1" step="0.01">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-<div class="card">
-<h2>2. Live Transcription</h2>
-<textarea id="transcript" rows="4" placeholder="Transcribed text will appear here..." readonly></textarea>
-</div>
-
-<div class="card">
-<h2>3. Translate & Generate Speech</h2>
-<select id="langSelect">
-  <option value="en">English</option>
-  <option value="hi">Hindi</option>
-  <option value="fr">French</option>
-  <option value="es">Spanish</option>
-  <option value="de">German</option>
-  <option value="it">Italian</option>
-  <option value="ja">Japanese</option>
-  <option value="ko">Korean</option>
-  <option value="ta">Tamil</option>
-  <option value="ru">Russian</option>
-  <option value="ar">Arabic</option>
-  <option value="pt">Portuguese</option>
-  <option value="bn">Bengali</option>
-  <option value="tr">Turkish</option>
-  <option value="vi">Vietnamese</option>
-  <option value="pl">Polish</option>
-  <option value="nl">Dutch</option>
-</select>
-<button id="ttsBtn" disabled>Generate Speech</button>
-<textarea id="translatedText" rows="4" placeholder="Translated text will appear here..." readonly style="margin-top:15px;"></textarea>
-<audio id="ttsAudio" controls></audio>
-</div>
-
-<script>
-const recordBtn = document.getElementById('recordBtn');
-const audioPlayback = document.getElementById('audioPlayback');
-const transcriptArea = document.getElementById('transcript');
-const langSelect = document.getElementById('langSelect');
-const ttsBtn = document.getElementById('ttsBtn');
-const ttsAudio = document.getElementById('ttsAudio');
-const statusDiv = document.getElementById('status');
-const translatedTextArea = document.getElementById('translatedText');
-
-let mediaRecorder;
-let audioChunks = [];
-
-async function handleRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        // Stop recording
-        mediaRecorder.stop();
-        recordBtn.textContent = "Start Recording";
-        recordBtn.classList.remove('recording');
-        statusDiv.textContent = "Processing audio...";
-    } else {
-        // Start recording
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = event => {
-                audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                const blob = new Blob(audioChunks, { type: 'audio/webm' });
-                audioPlayback.src = URL.createObjectURL(blob);
-
-                // --- Send for transcription ---
-                const formData = new FormData();
-                // ✅ CRITICAL FIX: Send a .webm file, which matches the blob's content
-                formData.append("file", blob, "voice.webm");
-
-                try {
-                    const resp = await fetch("/transcribe", { method: "POST", body: formData });
-                    if (!resp.ok) {
-                        const errorData = await resp.json();
-                        throw new Error(errorData.message || `Server error: ${resp.status}`);
-                    }
-                    const result = await resp.json();
-                    transcriptArea.value = result.text;
-                    statusDiv.textContent = "Transcription complete!";
-                    ttsBtn.disabled = !result.text; // Enable TTS button if text exists
-                } catch (error) {
-                    console.error("Transcription failed:", error);
-                    statusDiv.textContent = `Error: ${error.message}`;
-                    transcriptArea.value = "Failed to transcribe audio.";
-                    ttsBtn.disabled = true;
-                }
-            };
-
-            mediaRecorder.start();
-            recordBtn.textContent = "Stop Recording";
-            recordBtn.classList.add('recording');
-            statusDiv.textContent = "Recording...";
-            ttsBtn.disabled = true; // Disable TTS button while recording
-            transcriptArea.value = "";
-            translatedTextArea.value = "";
-        } catch (err) {
-            console.error("Error accessing microphone:", err);
-            statusDiv.textContent = "Error: Could not access microphone.";
-        }
-    }
-}
-
-async function handleTranslation() {
-    const text = transcriptArea.value.trim();
-    if (!text) {
-        alert("There is no text to translate!");
-        return;
-    }
-
-    const lang = langSelect.value;
-    const formData = new FormData();
-    formData.append("text", text);
-    formData.append("lang", lang);
+        <div class="card" style="display: none;">
+            <h2>Live Transcription</h2>
+            <textarea id="transcript" rows="4" readonly></textarea>
+        </div>
+    </main>
     
-    statusDiv.textContent = `Translating to ${langSelect.options[langSelect.selectedIndex].text}...`;
-    ttsBtn.disabled = true;
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
 
-    try {
-        const resp = await fetch("/translate_tts", { method: "POST", body: formData });
-        if (!resp.ok) {
-            const errorData = await resp.json();
-            throw new Error(errorData.message || `Server error: ${resp.status}`);
+        // 1. Send language preference to the server on connection and change
+        socket.on('connect', () => {
+            console.log('Connected to server via SocketIO');
+            const lang = langSelect.value;
+            socket.emit('set_language', { lang: lang });
+        });
+        
+        langSelect.addEventListener('change', () => {
+            const lang = langSelect.value;
+            socket.emit('set_language', { lang: lang });
+        });
+
+        // 2. Listen for translation output from the server
+        socket.on('translation_output', (data) => {
+            console.log('Received translation:', data);
+            translatedTextArea.value = data.translated_text; 
+            ttsAudio.src = data.tts_url;
+            transcriptArea.value = data.transcribed_text;
+            statusDiv.textContent = "Translation complete! ✅";
+            loader.style.display = 'none';
+            recordBtn.disabled = false;
+            langSelect.disabled = false;
+            customAudioPlayer.classList.remove('hidden');
+        });
+
+        // --- THEME TOGGLE & MOUSE EFFECT ---
+        const themeToggle = document.getElementById('theme-toggle');
+        
+        (function applySavedTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+            }
+        })();
+
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const currentTheme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
+            localStorage.setItem('theme', currentTheme);
+        });
+
+        window.addEventListener('mousemove', e => {
+            document.body.style.setProperty('--mouse-x', `${e.clientX}px`);
+            document.body.style.setProperty('--mouse-y', `${e.clientY}px`);
+        });
+
+        // --- CUSTOM AUDIO PLAYER LOGIC ---
+        const customAudioPlayer = document.getElementById('custom-audio-player');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const progressBarContainer = document.querySelector('.progress-bar-container');
+        const progressBar = document.getElementById('progressBar');
+        const progressHandle = document.getElementById('progressHandle');
+        const currentTimeSpan = document.getElementById('currentTime');
+        const durationSpan = document.getElementById('duration');
+        const volumeBtn = document.getElementById('volumeBtn');
+        const volumeControls = document.getElementById('volumeControls');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const speedBtn = document.getElementById('speedBtn');
+        
+        const ttsAudio = new Audio();
+        let speeds = [1.0, 1.5, 2.0];
+        let currentSpeedIndex = 0;
+
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
         }
-        const result = await resp.json();
-        // ✨ NEW: Display the translated text returned from the server
-        translatedTextArea.value = result.translated_text; 
-        ttsAudio.src = result.tts_url;
-        statusDiv.textContent = "Translation and speech generation complete!";
-    } catch (error) {
-        console.error("Translation/TTS failed:", error);
-        statusDiv.textContent = `Error: ${error.message}`;
-        translatedTextArea.value = "Failed to translate text.";
-    } finally {
-        ttsBtn.disabled = false; // Re-enable button
-    }
-}
 
-recordBtn.addEventListener('click', handleRecording);
-ttsBtn.addEventListener('click', handleTranslation);
-</script>
+        function updateProgress() {
+            const duration = ttsAudio.duration;
+            const current = ttsAudio.currentTime;
+            if (isNaN(duration)) {
+                progressBar.style.width = '0%';
+                progressHandle.style.left = '0%';
+                currentTimeSpan.textContent = '0:00';
+                return;
+            }
+            const progressPercent = (current / duration) * 100;
+            
+            progressBar.style.width = `${progressPercent}%`;
+            progressHandle.style.left = `${progressPercent}%`;
+            currentTimeSpan.textContent = formatTime(current);
 
+            if (ttsAudio.paused) {
+                playPauseBtn.classList.remove('pause-btn');
+                playPauseBtn.classList.add('play-btn');
+            }
+        }
+
+        playPauseBtn.addEventListener('click', () => {
+            if (ttsAudio.paused || ttsAudio.ended) {
+                ttsAudio.play();
+                playPauseBtn.classList.remove('play-btn');
+                playPauseBtn.classList.add('pause-btn');
+            } else {
+                ttsAudio.pause();
+                playPauseBtn.classList.remove('pause-btn');
+                playPauseBtn.classList.add('play-btn');
+            }
+        });
+
+        ttsAudio.addEventListener('loadedmetadata', () => {
+            if (!isNaN(ttsAudio.duration)) {
+                durationSpan.textContent = formatTime(ttsAudio.duration);
+                customAudioPlayer.classList.remove('hidden');
+                updateProgress();
+            }
+        });
+
+        ttsAudio.addEventListener('timeupdate', updateProgress);
+
+        ttsAudio.addEventListener('ended', () => {
+            playPauseBtn.classList.remove('pause-btn');
+            playPauseBtn.classList.add('play-btn');
+            ttsAudio.currentTime = 0;
+            updateProgress();
+        });
+
+        progressBarContainer.addEventListener('click', (e) => {
+            const rect = progressBarContainer.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const percentage = clickX / rect.width;
+            const newTime = ttsAudio.duration * percentage;
+            if (!isNaN(newTime)) {
+                ttsAudio.currentTime = newTime;
+            }
+        });
+        
+        volumeBtn.addEventListener('click', () => {
+            volumeControls.classList.toggle('visible');
+        });
+        
+        volumeSlider.addEventListener('input', (e) => {
+            ttsAudio.volume = e.target.value;
+        });
+
+        speedBtn.addEventListener('click', () => {
+            currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
+            const newSpeed = speeds[currentSpeedIndex];
+            ttsAudio.playbackRate = newSpeed;
+            speedBtn.textContent = newSpeed + 'x';
+        });
+
+        volumeSlider.value = ttsAudio.volume;
+        speedBtn.textContent = ttsAudio.playbackRate + 'x';
+        
+        document.addEventListener('click', (e) => {
+            if (!volumeControls.contains(e.target) && e.target !== volumeBtn) {
+                volumeControls.classList.remove('visible');
+            }
+        });
+
+        // --- CORE RECORDING & API LOGIC (Updated to use WebSockets) ---
+        let mediaRecorder;
+        let audioChunks = [];
+
+        async function handleRecording() {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                recordBtn.textContent = "Start Recording";
+                recordBtn.classList.remove('recording');
+            } else {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                        
+                        loader.style.display = 'block';
+                        statusDiv.textContent = `Processing audio... please wait.`;
+                        recordBtn.disabled = true;
+                        langSelect.disabled = true;
+                        
+                        // Emit the audio data to the server via WebSocket
+                        socket.emit('voice_input', { audio: blob });
+
+                        // The response will be handled by the 'translation_output' event listener
+                    };
+
+                    mediaRecorder.start();
+                    recordBtn.textContent = "Stop Recording";
+                    recordBtn.classList.add('recording');
+                    statusDiv.textContent = "Recording... 🔴";
+                    translatedTextArea.value = "";
+                    transcriptArea.value = "";
+                    ttsAudio.src = "";
+                    customAudioPlayer.classList.add('hidden');
+                } catch (err) {
+                    console.error("Error accessing microphone:", err);
+                    statusDiv.textContent = "Error: Could not access microphone. Please check your browser permissions. ⚠️";
+                }
+            }
+        }
+
+        recordBtn.addEventListener('click', handleRecording);
+    </script>
 </body>
 </html>
