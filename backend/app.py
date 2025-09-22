@@ -3,6 +3,7 @@ import uuid
 import requests
 from flask import Flask, send_file, request, jsonify
 from gtts import gTTS
+from deep_translator import GoogleTranslator
 from dotenv import load_dotenv
 
 # Make sure you have a .env file in the same directory with:
@@ -14,6 +15,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_URL = os.getenv("GROQ_API_URL")
 
 app = Flask(__name__)
+
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -71,8 +73,9 @@ def transcribe():
 # ---------------- Translate + TTS ----------------
 @app.route("/translate_tts", methods=["POST"])
 def translate_tts():
-    text = request.form.get("text")
-    lang = request.form.get("lang")
+    data = request.form
+    text = data.get("text")
+    lang = data.get("lang")
     if not text or not lang:
         return jsonify({"error": "Missing text or language"}), 400
 
