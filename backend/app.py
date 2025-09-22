@@ -1,86 +1,76 @@
-# app.py
-from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS
-from deep_translator import GoogleTranslator
-from gtts import gTTS
-from faster_whisper import WhisperModel
-from werkzeug.utils import secure_filename
 import os
 import uuid
+import base64
+import requests
+from flask import Flask, send_file, request, jsonify
+from gtts import gTTS
+from deep_translator import GoogleTranslator
+from dotenv import load_dotenv
 
-app = Flask(__name__, static_folder=None)
-CORS(app)
+load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_URL = os.getenv("GROQ_API_URL")
 
-BASE_DIR = os.path.dirname(__file__)
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
-OUTPUT_FOLDER = os.path.join(BASE_DIR, "outputs")
+app = Flask(__name__)
+
+UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# Load Whisper model once (force float32 for CPU)
-model = WhisperModel("small", compute_type="float32")
-
+# ---------------- Serve HTML ----------------
 @app.route("/")
 def index():
-    
-    return send_file(os.path.join(BASE_DIR, "index.html"))
+    return send_file("index.html")
 
-# Transcribe endpoint
+# ---------------- Serve TTS files ----------------
+@app.route("/tts/<filename>")
+def serve_tts(filename):
+    tts_path = os.path.join(UPLOAD_FOLDER, filename)
+    if os.path.exists(tts_path):
+        return send_file(tts_path, as_attachment=False)
+    return "File not found", 404
+
+# ---------------- Transcribe Voice ----------------
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    audio_bytes = file.read()
+    temp_file = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.wav")
+    with open(temp_file, "wb") as f:
+        f.write(audio_bytes)
+
     try:
-        if "file" not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+        files = {
+            "file": open(temp_file, "rb"),
+            "model": (None, "whisper-large-v3")
+        }
+        resp = requests.post(GROQ_API_URL, headers=headers, files=files)
+        text = resp.json().get("text", "")
+    finally:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
-        file = request.files["file"]
-        if file.filename == "":
-            return jsonify({"error": "Empty filename"}), 400
+    return jsonify({"text": text})
 
-        from werkzeug.utils import secure_filename
-        import uuid
-
-        filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
-
-        segments, _ = model.transcribe(filepath)
-        text = " ".join([seg.text.strip() for seg in segments]).strip()
-
-        return jsonify({"text": text})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# Translate + TTS endpoint
+# ---------------- Translate + TTS ----------------
 @app.route("/translate_tts", methods=["POST"])
 def translate_tts():
-    text = request.form.get("text")
-    target_lang = request.form.get("lang", "en")
-    if not text:
-        return jsonify({"error": "No text provided"}), 400
+    data = request.form
+    text = data.get("text")
+    lang = data.get("lang")
+    if not text or not lang:
+        return jsonify({"error": "Missing text or language"}), 400
 
-    # Translate
-    translated = GoogleTranslator(source="auto", target=target_lang).translate(text)
+    tts_file = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}_{lang}.mp3")
+    translated_text = GoogleTranslator(source="auto", target=lang).translate(text)
+    gTTS(translated_text, lang=lang).save(tts_file)
 
-    # Create unique tts filename
-    tts_filename = f"tts_{uuid.uuid4().hex}.mp3"
-    tts_path = os.path.join(OUTPUT_FOLDER, tts_filename)
+    return jsonify({"tts_url": f"/tts/{os.path.basename(tts_file)}", "translated_text": translated_text})
 
-    # Generate TTS
-    gTTS(translated, lang=target_lang).save(tts_path)
-
-    # Return the audio file directly (frontend expects a blob)
-    return send_file(tts_path, mimetype="audio/mpeg", as_attachment=False)
-
-# Download endpoint
-@app.route("/download/<filename>")
-def download(filename):
-    safe = secure_filename(filename)
-    full = os.path.join(OUTPUT_FOLDER, safe)
-    if not os.path.exists(full):
-        return "Not found", 404
-    return send_file(full, mimetype="audio/mpeg", as_attachment=False)
-
+# ---------------- Run Flask ----------------
 if __name__ == "__main__":
-    
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    print("Starting Flask server at http://127.0.0.1:5000 ...")
+    app.run(host="127.0.0.1", port=5000, debug=True)
