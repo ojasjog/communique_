@@ -1,162 +1,96 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Voice Translator Demo</title>
+<meta charset="UTF-8">
+<title>CommUnique - Voice Translator</title>
+<style>
+body { font-family: Arial, sans-serif; text-align:center; padding:20px; background:#0072ff; color:#fff;}
+h1 { font-size:2.5em; margin-bottom:10px;}
+.card { background: rgba(255,255,255,0.1); padding:20px; margin:15px auto; border-radius:15px; max-width:600px;}
+button { padding:10px 20px; margin:5px; font-size:1em; border-radius:8px; border:none; cursor:pointer; background:#00ffd5; color:#000; font-weight:bold;}
+button:hover { background:#00ffa5;}
+textarea { padding:10px; margin:5px 0; width:80%; border-radius:8px; border:none;}
+audio { margin-top:10px; width:100%;}
+</style>
 </head>
 <body>
 
-<h1 style = "text-align: center;">CommUnique</h1>
-<h2>1️⃣ Record Your Voice</h2>
+<h1>CommUnique</h1>
+
+<div class="card">
+<h2>🎤 Speak Your Voice</h2>
 <button id="recordBtn">Start Recording</button>
 <audio id="audioPlayback" controls></audio>
-<button id="downloadBtn" style="display:none;">Download Recording</button>
+</div>
 
-<h2>2️⃣ Upload & Transcribe</h2>
-<input type="file" id="audioUpload" accept="audio/*">
-<button id="transcribeBtn">Transcribe</button>
-<p>Transcript:</p>
-<textarea id="transcript" rows="4" cols="50"></textarea>
+<div class="card">
+<h2>📝 Live Transcription</h2>
+<textarea id="transcript" rows="4" placeholder="Transcribed text will appear here..."></textarea>
+</div>
 
-<h2>3️⃣ Translate & Generate Speech</h2>
+<div class="card">
+<h2>🌐 Translate & Generate Speech</h2>
 <select id="langSelect">
-    <option value="en">English</option>
-    <option value="hi">Hindi</option>
-    <option value="es">Spanish</option>
-    <option value="fr">French</option>
-    <option value="de">German</option>
-    <option value="it">Italian</option>
-    <option value="ja">Japanese</option>
-    <option value="ta">Tamil</option>
-    <option value="ru">Russian</option>
-    <option value="ko">Korean</option>
-    <option value="tr">Turkish</option>
-    <option value="pt">Portuguese</option>
-    <option value="ar">Arabic</option>
-    <option value="bn">Bengali</option>
-    <option value="ms">Malay</option>
-    <option value="vi">Vietnamese</option>
-    <option value="mr">Marathi</option>
-    <option value="te">Telugu</option>
-    <option value="pa">Punjabi</option>
-    <option value="gu">Gujarati</option>
-    <option value="kn">Kannada</option>
-    <option value="ne">Nepali</option>
-    
-    
+  <option value="en">English</option>
+  <option value="hi">Hindi</option>
+  <option value="fr">French</option>
+  <option value="es">Spanish</option>
+  <option value="de">German</option>
+  <option value="it">Italian</option>
+  <option value="ja">Japanese</option>
+  <option value="ko">Korean</option>
+  <option value="ta">Tamil</option>
 </select>
-<button id="ttsBtn">Translate & Generate Speech</button>
+<button id="ttsBtn">Generate Speech</button>
 <audio id="ttsAudio" controls></audio>
-<a id="downloadTTS" style="display:none;">Download TTS</a>
+</div>
 
 <script>
-let recordBtn = document.getElementById('recordBtn');
-let audioPlayback = document.getElementById('audioPlayback');
-let downloadBtn = document.getElementById('downloadBtn');
+const recordBtn = document.getElementById('recordBtn');
+const audioPlayback = document.getElementById('audioPlayback');
+const transcriptArea = document.getElementById('transcript');
+const langSelect = document.getElementById('langSelect');
+const ttsBtn = document.getElementById('ttsBtn');
+const ttsAudio = document.getElementById('ttsAudio');
 
 let mediaRecorder;
 let audioChunks = [];
 
-// ---------------- Record & Download ----------------
-recordBtn.addEventListener('click', async () => {
-    if (recordBtn.textContent === "Start Recording") {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+recordBtn.addEventListener('click', async ()=>{
+    if(recordBtn.textContent==="Start Recording"){
+        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
         mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
+        audioChunks=[];
+        mediaRecorder.ondataavailable = e=>audioChunks.push(e.data);
+        mediaRecorder.onstop = async ()=>{
+            const blob = new Blob(audioChunks,{type:'audio/wav'});
+            audioPlayback.src = URL.createObjectURL(blob);
 
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-
-        mediaRecorder.onstop = () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-            const audioUrl = URL.createObjectURL(audioBlob);
-            audioPlayback.src = audioUrl;
-
-            downloadBtn.style.display = 'inline';
-            downloadBtn.onclick = () => {
-                const link = document.createElement('a');
-                link.href = audioUrl;
-                link.download = 'recording.wav';
-                link.click();
-            };
+            // Send for transcription
+            const formData = new FormData();
+            formData.append("file", blob, "voice.wav");
+            const resp = await fetch("/transcribe",{method:"POST", body: formData});
+            const result = await resp.json();
+            transcriptArea.value = result.text;
         };
-
         mediaRecorder.start();
-        recordBtn.textContent = "Stop Recording";
-    } else {
+        recordBtn.textContent="Stop Recording";
+    }else{
         mediaRecorder.stop();
-        recordBtn.textContent = "Start Recording";
+        recordBtn.textContent="Start Recording";
     }
 });
 
-// ---------------- Upload & Transcribe ----------------
-const uploadInput = document.getElementById('audioUpload');
-const transcribeBtn = document.getElementById('transcribeBtn');
-const transcriptArea = document.getElementById('transcript');
-
-async function uploadAndTranscribe() {
-    const file = uploadInput.files[0];
-    if (!file) { 
-        alert("Please select a file first"); 
-        return; 
-    }
-
-    const formData = new FormData();
-    formData.append('file', file); 
-
-    try {
-        const response = await fetch('/transcribe', { method: 'POST', body: formData });
-
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            alert("Server error: " + (err.error || response.status));
-            return;
-        }
-
-        const data = await response.json();
-        transcriptArea.value = data.text || "";
-
-    } catch (err) {
-        console.error("Upload/transcribe failed", err);
-        alert("Network error: " + err.message);
-    }
-}
-
-transcribeBtn.addEventListener('click', uploadAndTranscribe);
-
-// ---------------- Translate & Generate TTS ----------------
-const ttsBtn = document.getElementById('ttsBtn');
-const langSelect = document.getElementById('langSelect');
-const ttsAudio = document.getElementById('ttsAudio');
-const downloadTTS = document.getElementById('downloadTTS');
-
-ttsBtn.addEventListener('click', async () => {
-    const text = transcriptArea.value;
+ttsBtn.addEventListener('click', async ()=>{
+    const text = transcriptArea.value.trim();
+    if(!text){ alert("No text to translate!"); return;}
     const lang = langSelect.value;
-    if (!text) { alert("No text to convert!"); return; }
-
     const formData = new FormData();
-    formData.append('text', text);
-    formData.append('lang', lang);
-
-    try {
-        const response = await fetch('/translate_tts', { method: 'POST', body: formData });
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            alert("Server error: " + (err.error || response.status));
-            return;
-        }
-
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-
-        ttsAudio.src = url;
-        downloadTTS.href = url;
-        downloadTTS.download = 'tts_speech.mp3';
-        downloadTTS.style.display = 'inline';
-
-    } catch (err) {
-        console.error("TTS failed", err);
-        alert("Network error: " + err.message);
-    }
+    formData.append("text", text);
+    formData.append("lang", lang);
+    const resp = await fetch("/translate_tts", {method:"POST", body: formData});
+    const result = await resp.json();
+    ttsAudio.src = result.tts_url;
 });
 </script>
 
