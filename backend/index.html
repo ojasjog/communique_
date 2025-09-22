@@ -20,8 +20,6 @@
             --shadow-color: rgba(44, 62, 80, 0.1);
             --spinner-color: var(--accent-color);
             --theme-toggle-bg: #e1e8ed;
-            --theme-icon: '💡';
-            /* ▼▼▼ NEW: Spotlight color for light mode ▼▼▼ */
             --spotlight-color: rgba(0, 0, 0, 0.05);
             --input-bg-color: #eaf1f6;
             --input-border-color: #d1d8df;
@@ -40,8 +38,6 @@
             --shadow-color: rgba(10, 10, 10, 0.2);
             --spinner-color: var(--accent-color);
             --theme-toggle-bg: #373e47;
-            --theme-icon: '🌕';
-           
             --spotlight-color: rgba(255, 255, 255, 0.07);
             --input-bg-color: #2d333b;
             --input-border-color: #444c56;
@@ -187,13 +183,7 @@
             font-family: inherit;
             font-size: 1rem;
             resize: vertical;
-        }
-
-        audio {
-            margin-top: 1rem;
-            width: 100%;
-            border-radius: 200px;
-            background-color: var(--bg-color);
+            transition: background-color 0.3s, border-color 0.3s;
         }
 
         /* 4. LOADER & THEME TOGGLE */
@@ -431,14 +421,13 @@
 
     <main>
         <header>
-            <h1>CommUnique 🎧</h1>
+            <h1>CommUnique 🗣️</h1>
+            <p>Your instant voice translator.</p>
             <button id="theme-toggle" aria-label="Toggle theme"></button>
         </header>
-        <h2>Made by the community , for the community</h2>
-        <p>Record your voice and instantly get the translated text and speech in the language of your choice.</p>
         
         <section class="card">
-            <h2>1. Select your preferred Language & Record</h2>
+            <h2>1. Select Language & Record</h2>
             <p>Choose your target language, then press the record button to begin.</p>
             <div>
                 <select id="langSelect" aria-label="Select target language">
@@ -461,17 +450,33 @@
                     <option value="nl">Dutch</option>
                 </select>
                 <button id="recordBtn">Start Recording</button>
-                <!-- <div id="progressBar"></div> -->
             </div>
             <div id="loader"></div>
-            <p id="stopwatch" style="font-weight: bold; margin-top: 1rem;"></p>
             <p id="status" style="margin-top: 1rem; min-height: 1.6em;"></p>
         </section>
 
         <section class="card">
-            <h2>2. Your Translated speech</h2>
-            <textarea id="translatedText" rows="4" placeholder="Translated text will appear here..." readonly></textarea>
-            <audio id="ttsAudio" controls></audio>
+            <h2>2. Your Translation</h2>
+            <textarea id="translatedText" rows="4" placeholder="Translated text will appear here..." readonly aria-live="polite"></textarea>
+            
+            <div class="audio-player-container">
+                <div id="custom-audio-player" class="audio-player hidden">
+                    <button id="playPauseBtn" class="play-btn player-btn" aria-label="Play/Pause"></button>
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar"></div>
+                        <div id="progressHandle" class="progress-handle"></div>
+                    </div>
+                    <span id="currentTime">0:00</span> / <span id="duration">0:00</span>
+                    
+                    <button id="speedBtn" class="player-btn">1x</button>
+                    <div style="position: relative;">
+                        <button id="volumeBtn" class="player-btn" aria-label="Volume"></button>
+                        <div id="volumeControls" class="volume-controls">
+                            <input type="range" id="volumeSlider" min="0" max="1" step="0.01">
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <div class="card" style="display: none;">
@@ -480,36 +485,8 @@
         </div>
     </main>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
-        const socket = io();
-
-        // 1. Send language preference to the server on connection and change
-        socket.on('connect', () => {
-            console.log('Connected to server via SocketIO');
-            const lang = langSelect.value;
-            socket.emit('set_language', { lang: lang });
-        });
-        
-        langSelect.addEventListener('change', () => {
-            const lang = langSelect.value;
-            socket.emit('set_language', { lang: lang });
-        });
-
-        // 2. Listen for translation output from the server
-        socket.on('translation_output', (data) => {
-            console.log('Received translation:', data);
-            translatedTextArea.value = data.translated_text; 
-            ttsAudio.src = data.tts_url;
-            transcriptArea.value = data.transcribed_text;
-            statusDiv.textContent = "Translation complete! ✅";
-            loader.style.display = 'none';
-            recordBtn.disabled = false;
-            langSelect.disabled = false;
-            customAudioPlayer.classList.remove('hidden');
-        });
-
-        // --- THEME TOGGLE & MOUSE EFFECT ---
+        // --- 1. THEME TOGGLE & MOUSE EFFECT ---
         const themeToggle = document.getElementById('theme-toggle');
         
         (function applySavedTheme() {
@@ -529,115 +506,202 @@
             document.body.style.setProperty('--mouse-x', `${e.clientX}px`);
             document.body.style.setProperty('--mouse-y', `${e.clientY}px`);
         });
+
+        // --- 2. TRANSLATOR APP LOGIC ---
+        const recordBtn = document.getElementById('recordBtn');
+        const transcriptArea = document.getElementById('transcript');
+        const langSelect = document.getElementById('langSelect');
+        const statusDiv = document.getElementById('status');
+        const translatedTextArea = document.getElementById('translatedText');
+        const loader = document.getElementById('loader');
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        // --- 3. CUSTOM AUDIO PLAYER LOGIC ---
+        const customAudioPlayer = document.getElementById('custom-audio-player');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const progressBarContainer = document.querySelector('.progress-bar-container');
+        const progressBar = document.getElementById('progressBar');
+        const progressHandle = document.getElementById('progressHandle');
+        const currentTimeSpan = document.getElementById('currentTime');
+        const durationSpan = document.getElementById('duration');
+        const volumeBtn = document.getElementById('volumeBtn');
+        const volumeControls = document.getElementById('volumeControls');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const speedBtn = document.getElementById('speedBtn');
         
+        const ttsAudio = new Audio();
+        let speeds = [1.0, 1.5, 2.0];
+        let currentSpeedIndex = 0;
 
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
+        }
 
-        // --- TRANSLATOR APP LOGIC ---
-// --- TRANSLATOR APP LOGIC ---
-const recordBtn = document.getElementById('recordBtn');
-const transcriptArea = document.getElementById('transcript');
-const langSelect = document.getElementById('langSelect');
-const ttsAudio = document.getElementById('ttsAudio');
-const statusDiv = document.getElementById('status');
-const translatedTextArea = document.getElementById('translatedText');
-const loader = document.getElementById('loader');
-const stopwatchDisplay = document.getElementById('stopwatch'); // Stopwatch display element
+        function updateProgress() {
+            const duration = ttsAudio.duration;
+            const current = ttsAudio.currentTime;
+            if (isNaN(duration)) {
+                progressBar.style.width = '0%';
+                progressHandle.style.left = '0%';
+                currentTimeSpan.textContent = '0:00';
+                return;
+            }
+            const progressPercent = (current / duration) * 100;
+            
+            progressBar.style.width = `${progressPercent}%`;
+            progressHandle.style.left = `${progressPercent}%`;
+            currentTimeSpan.textContent = formatTime(current);
 
-let mediaRecorder;
-let audioChunks = [];
-let stopwatchInterval; // Interval for the stopwatch
-let seconds = 0; // Tracks stopwatch time
+            if (ttsAudio.paused) {
+                playPauseBtn.classList.remove('pause-btn');
+                playPauseBtn.classList.add('play-btn');
+            }
+        }
 
-// Function to start the stopwatch
-function startStopwatch() {
-    seconds = 0;
-    stopwatchDisplay.textContent = '00:00';
+        playPauseBtn.addEventListener('click', () => {
+            if (ttsAudio.paused || ttsAudio.ended) {
+                ttsAudio.play();
+                playPauseBtn.classList.remove('play-btn');
+                playPauseBtn.classList.add('pause-btn');
+            } else {
+                ttsAudio.pause();
+                playPauseBtn.classList.remove('pause-btn');
+                playPauseBtn.classList.add('play-btn');
+            }
+        });
 
-    stopwatchInterval = setInterval(() => {
-        seconds++;
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        const formattedTime = `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
-        stopwatchDisplay.textContent = formattedTime;
-    }, 1000);
-}
+        ttsAudio.addEventListener('loadedmetadata', () => {
+            if (!isNaN(ttsAudio.duration)) {
+                durationSpan.textContent = formatTime(ttsAudio.duration);
+                customAudioPlayer.classList.remove('hidden');
+                updateProgress();
+            }
+        });
 
-async function handleRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-    } else {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            audioChunks = [];
+        ttsAudio.addEventListener('timeupdate', updateProgress);
 
-            mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+        ttsAudio.addEventListener('ended', () => {
+            playPauseBtn.classList.remove('pause-btn');
+            playPauseBtn.classList.add('play-btn');
+            ttsAudio.currentTime = 0;
+            updateProgress();
+        });
 
-            mediaRecorder.onstop = async () => {
-                if (stopwatchInterval) clearInterval(stopwatchInterval); // Clear the stopwatch
+        progressBarContainer.addEventListener('click', (e) => {
+            const rect = progressBarContainer.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const percentage = clickX / rect.width;
+            const newTime = ttsAudio.duration * percentage;
+            if (!isNaN(newTime)) {
+                ttsAudio.currentTime = newTime;
+            }
+        });
+        
+        // New: Volume and Speed Controls
+        volumeBtn.addEventListener('click', () => {
+            volumeControls.classList.toggle('visible');
+        });
+        
+        volumeSlider.addEventListener('input', (e) => {
+            ttsAudio.volume = e.target.value;
+        });
+
+        speedBtn.addEventListener('click', () => {
+            currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
+            const newSpeed = speeds[currentSpeedIndex];
+            ttsAudio.playbackRate = newSpeed;
+            speedBtn.textContent = newSpeed + 'x';
+        });
+
+        // Initialize player settings
+        volumeSlider.value = ttsAudio.volume;
+        speedBtn.textContent = ttsAudio.playbackRate + 'x';
+        
+        // Close volume slider if user clicks outside
+        document.addEventListener('click', (e) => {
+            if (!volumeControls.contains(e.target) && e.target !== volumeBtn) {
+                volumeControls.classList.remove('visible');
+            }
+        });
+
+        // --- 4. CORE RECORDING & API LOGIC ---
+        async function handleRecording() {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
                 recordBtn.textContent = "Start Recording";
                 recordBtn.classList.remove('recording');
-                //stopwatchDisplay.textContent = ''; // Clear the stopwatch display
-
-                const blob = new Blob(audioChunks, { type: 'audio/webm' });
-
-                const formData = new FormData();
-                formData.append("file", blob, "voice.webm");
-                formData.append("lang", langSelect.value);
-
-                loader.style.display = 'block';
-                statusDiv.textContent = `Processing... this may take a moment.`;
-                recordBtn.disabled = true;
-                langSelect.disabled = true;
-
+            } else {
                 try {
-                    const resp = await fetch("/process-audio", { method: "POST", body: formData });
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                    audioChunks = [];
 
-                    if (!resp.ok) {
-                        let errorMsg = `Server error: ${resp.status}`;
+                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                        
+                        const formData = new FormData();
+                        formData.append("file", blob, "voice.webm");
+                        formData.append("lang", langSelect.value);
+
+                        loader.style.display = 'block';
+                        statusDiv.textContent = `Processing audio... please wait.`;
+                        recordBtn.disabled = true;
+                        langSelect.disabled = true;
+
                         try {
-                            const errorData = await resp.json();
-                            errorMsg = errorData.message || errorMsg;
-                        } catch (e) {
-                            errorMsg = await resp.text();
+                            const resp = await fetch("/process-audio", { method: "POST", body: formData });
+                            
+                            if (!resp.ok) {
+                                let errorMsg = `Server error: ${resp.status}`;
+                                try {
+                                    const errorData = await resp.json();
+                                    errorMsg = errorData.message || errorMsg;
+                                } catch (e) {
+                                    errorMsg = await resp.text();
+                                }
+                                throw new Error(errorMsg);
+                            }
+                            
+                            const result = await resp.json();
+                            
+                            translatedTextArea.value = result.translated_text; 
+                            ttsAudio.src = result.tts_url;
+                            transcriptArea.value = result.transcribed_text;
+                            statusDiv.textContent = "Translation complete! ✅";
+
+                        } catch (error) {
+                            console.error("Processing failed:", error);
+                            statusDiv.textContent = `Error: ${error.message}`;
+                            translatedTextArea.value = "Failed to process audio. See console for details.";
+                        } finally {
+                            loader.style.display = 'none';
+                            recordBtn.disabled = false;
+                            langSelect.disabled = false;
                         }
-                        throw new Error(errorMsg);
-                    }
+                    };
 
-                    const result = await resp.json();
-
-                    translatedTextArea.value = result.translated_text;
-                    ttsAudio.src = result.tts_url;
-                    transcriptArea.value = result.transcribed_text;
-                    statusDiv.textContent = "Translation complete!";
-
-                } catch (error) {
-                    console.error("Processing failed:", error);
-                    statusDiv.textContent = `Error: ${error.message}`;
-                    translatedTextArea.value = "Failed to process audio.";
-                } finally {
-                    loader.style.display = 'none';
-                    recordBtn.disabled = false;
-                    langSelect.disabled = false;
+                    mediaRecorder.start();
+                    recordBtn.textContent = "Stop Recording";
+                    recordBtn.classList.add('recording');
+                    statusDiv.textContent = "Recording... 🔴";
+                    translatedTextArea.value = "";
+                    transcriptArea.value = "";
+                    ttsAudio.src = "";
+                    customAudioPlayer.classList.add('hidden');
+                } catch (err) {
+                    console.error("Error accessing microphone:", err);
+                    statusDiv.textContent = "Error: Could not access microphone. Please check your browser permissions. ⚠️";
                 }
-            };
-
-            mediaRecorder.start();
-            startStopwatch(); // Start the stopwatch
-            recordBtn.textContent = "Stop Recording";
-            recordBtn.classList.add('recording');
-            statusDiv.textContent = "Recording...";
-            translatedTextArea.value = "";
-            transcriptArea.value = "";
-            ttsAudio.src = "";
-        } catch (err) {
-            console.error("Error accessing microphone:", err);
-            statusDiv.textContent = "Error: Could not access microphone.";
+            }
         }
-    }
-}
 
-recordBtn.addEventListener('click', handleRecording);
+        recordBtn.addEventListener('click', handleRecording);
     </script>
 </body>
 </html>
