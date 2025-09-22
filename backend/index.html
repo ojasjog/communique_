@@ -6,30 +6,36 @@
 <style>
 body { font-family: Arial, sans-serif; text-align:center; padding:20px; background:#0072ff; color:#fff;}
 h1 { font-size:2.5em; margin-bottom:10px;}
-.card { background: rgba(255,255,255,0.1); padding:20px; margin:15px auto; border-radius:15px; max-width:600px;}
-button { padding:10px 20px; margin:5px; font-size:1em; border-radius:8px; border:none; cursor:pointer; background:#00ffd5; color:#000; font-weight:bold;}
+p { max-width: 600px; margin: 0 auto 20px auto; }
+.card { background: rgba(255,255,255,0.1); padding:20px; margin:15px auto; border-radius:15px; max-width:600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
+button { padding:10px 20px; margin:5px; font-size:1em; border-radius:8px; border:none; cursor:pointer; background:#00ffd5; color:#000; font-weight:bold; transition: background-color 0.2s;}
 button:hover { background:#00ffa5;}
-textarea { padding:10px; margin:5px 0; width:80%; border-radius:8px; border:none;}
+button:disabled { background: #ccc; cursor: not-allowed; }
+textarea { padding:10px; margin:10px 0; width:95%; border-radius:8px; border:none; background: rgba(255,255,255,0.9); color: #333;}
 audio { margin-top:10px; width:100%;}
+#recordBtn.recording { background-color: #ff4757; color: white;}
+#recordBtn.recording:hover { background-color: #e03b4a; }
 </style>
 </head>
 <body>
 
-<h1>CommUnique</h1>
+<h1>CommUnique 🎤</h1>
+<p>Record your voice, get an instant transcription, and translate it into multiple languages with text-to-speech output.</p>
 
 <div class="card">
-<h2>🎤 Speak Your Voice</h2>
+<h2>1. Speak Your Voice</h2>
 <button id="recordBtn">Start Recording</button>
+<p id="status" style="margin-top: 10px;"></p>
 <audio id="audioPlayback" controls></audio>
 </div>
 
 <div class="card">
-<h2>📝 Live Transcription</h2>
-<textarea id="transcript" rows="4" placeholder="Transcribed text will appear here..."></textarea>
+<h2>2. Live Transcription</h2>
+<textarea id="transcript" rows="4" placeholder="Transcribed text will appear here..." readonly></textarea>
 </div>
 
 <div class="card">
-<h2>🌐 Translate & Generate Speech</h2>
+<h2>3. Translate & Generate Speech</h2>
 <select id="langSelect">
   <option value="en">English</option>
   <option value="hi">Hindi</option>
@@ -40,8 +46,17 @@ audio { margin-top:10px; width:100%;}
   <option value="ja">Japanese</option>
   <option value="ko">Korean</option>
   <option value="ta">Tamil</option>
+  <option value="ru">Russian</option>
+  <option value="ar">Arabic</option>
+  <option value="pt">Portuguese</option>
+  <option value="bn">Bengali</option>
+  <option value="tr">Turkish</option>
+  <option value="vi">Vietnamese</option>
+  <option value="pl">Polish</option>
+  <option value="nl">Dutch</option>
 </select>
-<button id="ttsBtn">Generate Speech</button>
+<button id="ttsBtn" disabled>Generate Speech</button>
+<textarea id="translatedText" rows="4" placeholder="Translated text will appear here..." readonly style="margin-top:15px;"></textarea>
 <audio id="ttsAudio" controls></audio>
 </div>
 
@@ -52,46 +67,108 @@ const transcriptArea = document.getElementById('transcript');
 const langSelect = document.getElementById('langSelect');
 const ttsBtn = document.getElementById('ttsBtn');
 const ttsAudio = document.getElementById('ttsAudio');
+const statusDiv = document.getElementById('status');
+const translatedTextArea = document.getElementById('translatedText');
 
 let mediaRecorder;
 let audioChunks = [];
 
-recordBtn.addEventListener('click', async ()=>{
-    if(recordBtn.textContent==="Start Recording"){
-        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks=[];
-        mediaRecorder.ondataavailable = e=>audioChunks.push(e.data);
-        mediaRecorder.onstop = async ()=>{
-            const blob = new Blob(audioChunks,{type:'audio/wav'});
-            audioPlayback.src = URL.createObjectURL(blob);
-
-            // Send for transcription
-            const formData = new FormData();
-            formData.append("file", blob, "voice.wav");
-            const resp = await fetch("/transcribe",{method:"POST", body: formData});
-            const result = await resp.json();
-            transcriptArea.value = result.text;
-        };
-        mediaRecorder.start();
-        recordBtn.textContent="Stop Recording";
-    }else{
+async function handleRecording() {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        // Stop recording
         mediaRecorder.stop();
-        recordBtn.textContent="Start Recording";
-    }
-});
+        recordBtn.textContent = "Start Recording";
+        recordBtn.classList.remove('recording');
+        statusDiv.textContent = "Processing audio...";
+    } else {
+        // Start recording
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            audioChunks = [];
 
-ttsBtn.addEventListener('click', async ()=>{
+            mediaRecorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                audioPlayback.src = URL.createObjectURL(blob);
+
+                // --- Send for transcription ---
+                const formData = new FormData();
+                // ✅ CRITICAL FIX: Send a .webm file, which matches the blob's content
+                formData.append("file", blob, "voice.webm");
+
+                try {
+                    const resp = await fetch("/transcribe", { method: "POST", body: formData });
+                    if (!resp.ok) {
+                        const errorData = await resp.json();
+                        throw new Error(errorData.message || `Server error: ${resp.status}`);
+                    }
+                    const result = await resp.json();
+                    transcriptArea.value = result.text;
+                    statusDiv.textContent = "Transcription complete!";
+                    ttsBtn.disabled = !result.text; // Enable TTS button if text exists
+                } catch (error) {
+                    console.error("Transcription failed:", error);
+                    statusDiv.textContent = `Error: ${error.message}`;
+                    transcriptArea.value = "Failed to transcribe audio.";
+                    ttsBtn.disabled = true;
+                }
+            };
+
+            mediaRecorder.start();
+            recordBtn.textContent = "Stop Recording";
+            recordBtn.classList.add('recording');
+            statusDiv.textContent = "Recording...";
+            ttsBtn.disabled = true; // Disable TTS button while recording
+            transcriptArea.value = "";
+            translatedTextArea.value = "";
+        } catch (err) {
+            console.error("Error accessing microphone:", err);
+            statusDiv.textContent = "Error: Could not access microphone.";
+        }
+    }
+}
+
+async function handleTranslation() {
     const text = transcriptArea.value.trim();
-    if(!text){ alert("No text to translate!"); return;}
+    if (!text) {
+        alert("There is no text to translate!");
+        return;
+    }
+
     const lang = langSelect.value;
     const formData = new FormData();
     formData.append("text", text);
     formData.append("lang", lang);
-    const resp = await fetch("/translate_tts", {method:"POST", body: formData});
-    const result = await resp.json();
-    ttsAudio.src = result.tts_url;
-});
+    
+    statusDiv.textContent = `Translating to ${langSelect.options[langSelect.selectedIndex].text}...`;
+    ttsBtn.disabled = true;
+
+    try {
+        const resp = await fetch("/translate_tts", { method: "POST", body: formData });
+        if (!resp.ok) {
+            const errorData = await resp.json();
+            throw new Error(errorData.message || `Server error: ${resp.status}`);
+        }
+        const result = await resp.json();
+        // ✨ NEW: Display the translated text returned from the server
+        translatedTextArea.value = result.translated_text; 
+        ttsAudio.src = result.tts_url;
+        statusDiv.textContent = "Translation and speech generation complete!";
+    } catch (error) {
+        console.error("Translation/TTS failed:", error);
+        statusDiv.textContent = `Error: ${error.message}`;
+        translatedTextArea.value = "Failed to translate text.";
+    } finally {
+        ttsBtn.disabled = false; // Re-enable button
+    }
+}
+
+recordBtn.addEventListener('click', handleRecording);
+ttsBtn.addEventListener('click', handleTranslation);
 </script>
 
 </body>
