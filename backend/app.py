@@ -1,10 +1,8 @@
 import os
 import uuid
-import base64
 import requests
 from flask import Flask, send_file, request, jsonify
 from gtts import gTTS
-from deep_translator import GoogleTranslator
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,7 +10,6 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_URL = os.getenv("GROQ_API_URL")
 
 app = Flask(__name__)
-
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -36,19 +33,17 @@ def transcribe():
         return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files["file"]
-    audio_bytes = file.read()
     temp_file = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.wav")
-    with open(temp_file, "wb") as f:
-        f.write(audio_bytes)
+    file.save(temp_file)
 
     try:
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-        files = {
-            "file": open(temp_file, "rb"),
-            "model": (None, "whisper-large-v3")
-        }
+        files = {"file": open(temp_file, "rb"), "model": (None, "whisper-large-v3")}
         resp = requests.post(GROQ_API_URL, headers=headers, files=files)
+        resp.raise_for_status()
         text = resp.json().get("text", "")
+    except Exception as e:
+        text = f"Error: {str(e)}"
     finally:
         if os.path.exists(temp_file):
             os.remove(temp_file)
@@ -58,17 +53,14 @@ def transcribe():
 # ---------------- Translate + TTS ----------------
 @app.route("/translate_tts", methods=["POST"])
 def translate_tts():
-    data = request.form
-    text = data.get("text")
-    lang = data.get("lang")
+    text = request.form.get("text")
+    lang = request.form.get("lang")
     if not text or not lang:
         return jsonify({"error": "Missing text or language"}), 400
 
     tts_file = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}_{lang}.mp3")
-    translated_text = GoogleTranslator(source="auto", target=lang).translate(text)
-    gTTS(translated_text, lang=lang).save(tts_file)
-
-    return jsonify({"tts_url": f"/tts/{os.path.basename(tts_file)}", "translated_text": translated_text})
+    gTTS(text, lang=lang).save(tts_file)
+    return jsonify({"tts_url": f"/tts/{os.path.basename(tts_file)}"})
 
 # ---------------- Run Flask ----------------
 if __name__ == "__main__":
