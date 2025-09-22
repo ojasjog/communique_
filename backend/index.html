@@ -2,34 +2,109 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CommuNique - Live Translation</title>
+  <title>CommuNique 🌍 – Real-Time Translation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Animate.css -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      color: white;
+      background: radial-gradient(circle at top, #0a0a1a 0%, #000 100%);
+      position: relative;
+      overflow-x: hidden;
+    }
+    canvas#bgCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #050510, #0a0a1a, #000);
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    .btn {
+      transition: all 0.2s ease-in-out;
+    }
+    .btn:hover {
+      transform: scale(1.05);
+    }
+  </style>
 </head>
-<body>
-  <h1>🌍 CommuNique</h1>
+<body class="min-h-screen flex flex-col items-center justify-center p-6 space-y-6">
 
-  <label for="lang">Select Language:</label>
-  <select id="lang">
-    <option value="en">English</option>
-    <option value="hi">Hindi</option>
-    <option value="fr">French</option>
-    <option value="es">Spanish</option>
-    <option value="de">German</option>
-    <option value="it">Italian</option>
-    <option value="ja">Japanese</option>
-    <option value="ko">Korean</option>
-    <option value="ru">Russian</option>
-  </select>
-  <button id="joinBtn">Join</button>
-  <br><br>
+  <!-- Background Canvas -->
+  <canvas id="bgCanvas"></canvas>
 
-  <button id="recordBtn">🎤 Start / Stop Recording</button>
+  <!-- Header -->
+  <div class="text-center animate__animated animate__fadeInDown">
+    <h1 class="text-4xl font-extrabold tracking-wide">🌍 CommuNique</h1>
+    <p class="text-lg mt-2 text-gray-200">From <span class="font-semibold">Confused</span> to <span class="font-semibold">Connected</span> — in just one click!</p>
+  </div>
 
-  <h3>Original:</h3>
-  <p id="origText"></p>
-  <h3>Translated:</h3>
-  <p id="translatedText"></p>
+  <!-- Control Panel -->
+  <div class="glass p-6 w-full max-w-lg animate__animated animate__zoomIn">
+    <div class="mb-4">
+      <label for="lang" class="block text-sm font-semibold mb-2">🌐 Choose Your Language</label>
+      <select id="lang" class="w-full p-2 rounded-lg text-black">
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="fr">French</option>
+        <option value="es">Spanish</option>
+        <option value="de">German</option>
+        <option value="it">Italian</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="ru">Russian</option>
+        <option value="mr">Marathi</option>
+        <option value="ar">Arabic</option>
+        <option value="bn">Bengali</option>
+        <option value="pa">Punjabi</option>
+        <option value="te">Telugu</option>
+        <option value="ta">Tamil</option>
+        <option value="ur">Urdu</option>
+        <option value="tr">Turkish</option>
+        <option value="nl">Dutch</option>
+        <option value="sv">Swedish</option>
+        <option value="pl">Polish</option>
+       
+      </select>
+    </div>
 
-  <audio id="ttsAudio" controls autoplay></audio>
+    <div class="flex justify-between items-center mb-4">
+      <button id="joinBtn" class="btn bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg font-semibold">
+        ✅ Join
+      </button>
+      <button id="recordBtn" class="btn bg-pink-500 hover:bg-pink-600 px-4 py-2 rounded-lg font-semibold">
+        🎤 Start Recording
+      </button>
+    </div>
+  </div>
+
+  <!-- Chat Window -->
+  <div class="glass p-6 w-full max-w-2xl h-96 overflow-y-auto animate__animated animate__fadeInUp" id="chatWindow">
+    <h2 class="text-xl font-semibold mb-4">Live Conversation</h2>
+    <div id="messages" class="space-y-4"></div>
+  </div>
+
+  <!-- Audio Player -->
+  <div class="animate__animated animate__fadeIn">
+    <audio id="ttsAudio" class="w-80" controls autoplay></audio>
+  </div>
 
   <!-- Socket.IO -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -39,8 +114,7 @@
     const joinBtn = document.getElementById("joinBtn");
     const langSelect = document.getElementById("lang");
     const recordBtn = document.getElementById("recordBtn");
-    const origText = document.getElementById("origText");
-    const translatedText = document.getElementById("translatedText");
+    const messages = document.getElementById("messages");
     const ttsAudio = document.getElementById("ttsAudio");
 
     let mediaRecorder;
@@ -74,20 +148,115 @@
 
         mediaRecorder.start();
         recordBtn.innerText = "⏹ Stop Recording";
+        recordBtn.classList.remove("bg-pink-500");
+        recordBtn.classList.add("bg-red-600");
       } else {
         mediaRecorder.stop();
         recordBtn.innerText = "🎤 Start Recording";
+        recordBtn.classList.remove("bg-red-600");
+        recordBtn.classList.add("bg-pink-500");
       }
     });
 
     socket.on("new_message", (data) => {
-      origText.textContent = data.orig_text;
-      translatedText.textContent = data.translated_text;
+      const bubble = document.createElement("div");
+      bubble.className = "p-3 rounded-lg bg-white bg-opacity-20 animate__animated animate__fadeInUp";
+
+      bubble.innerHTML = `
+        <p class="text-sm text-gray-300">Original: <span class="font-semibold text-white">${data.orig_text}</span></p>
+        <p class="text-sm text-gray-200">Translated [${data.lang}]: <span class="font-semibold text-green-300">${data.translated_text}</span></p>
+      `;
+
+      messages.appendChild(bubble);
+      messages.scrollTop = messages.scrollHeight;
       ttsAudio.src = data.tts_url;
     });
 
     socket.on("joined", (data) => {
       alert(data.msg);
+    });
+  </script>
+
+  <!-- Futuristic Background Script -->
+  <script>
+    const canvas = document.getElementById("bgCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let particles = [];
+    const numParticles = 120;
+    let mouse = { x: null, y: null };
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 3 + 1;
+        this.speedX = Math.random() * 1 - 0.5;
+        this.speedY = Math.random() * 1 - 0.5;
+      }
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+
+        if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+
+        const dx = this.x - mouse.x;
+        const dy = this.y - mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (mouse.x && mouse.y && dist < 120) {
+          this.x += dx / dist;
+          this.y += dy / dist;
+        }
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+
+        // Neon cyan → purple glow
+        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 3);
+        gradient.addColorStop(0, "rgba(0, 255, 255, 1)");
+        gradient.addColorStop(1, "rgba(200, 0, 255, 0)");
+
+        ctx.fillStyle = gradient;
+        ctx.shadowColor = "cyan";
+        ctx.shadowBlur = 15;
+        ctx.fill();
+      }
+    }
+
+    function initParticles() {
+      particles = [];
+      for (let i = 0; i < numParticles; i++) {
+        particles.push(new Particle());
+      }
+    }
+    initParticles();
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    window.addEventListener("mousemove", (e) => {
+      mouse.x = e.x;
+      mouse.y = e.y;
+    });
+    window.addEventListener("mouseout", () => {
+      mouse.x = null;
+      mouse.y = null;
     });
   </script>
 </body>
