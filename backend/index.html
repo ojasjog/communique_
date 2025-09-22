@@ -1,175 +1,364 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>CommUnique - Voice Translator</title>
-<style>
-body { font-family: Arial, sans-serif; text-align:center; padding:20px; background:#0072ff; color:#fff;}
-h1 { font-size:2.5em; margin-bottom:10px;}
-p { max-width: 600px; margin: 0 auto 20px auto; }
-.card { background: rgba(255,255,255,0.1); padding:20px; margin:15px auto; border-radius:15px; max-width:600px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
-button { padding:10px 20px; margin:5px; font-size:1em; border-radius:8px; border:none; cursor:pointer; background:#00ffd5; color:#000; font-weight:bold; transition: background-color 0.2s;}
-button:hover { background:#00ffa5;}
-button:disabled { background: #ccc; cursor: not-allowed; }
-textarea { padding:10px; margin:10px 0; width:95%; border-radius:8px; border:none; background: rgba(255,255,255,0.9); color: #333;}
-audio { margin-top:10px; width:100%;}
-#recordBtn.recording { background-color: #ff4757; color: white;}
-#recordBtn.recording:hover { background-color: #e03b4a; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CommUnique - Voice Translator</title>
+    <style>
+        /* 1. CSS VARIABLES & THEME SETUP */
+        :root {
+            --bg-color: #f4f7f9;
+            --card-bg-color: #ffffff;
+            --text-color: #2c3e50;
+            --text-secondary-color: #576c7f;
+            --accent-color: #3498db;
+            --accent-hover-color: #2980b9;
+            --record-color: #e74c3c;
+            --record-hover-color: #c0392b;
+            --border-color: #e1e8ed;
+            --shadow-color: rgba(44, 62, 80, 0.1);
+            --spinner-color: var(--accent-color);
+            --theme-toggle-bg: #e1e8ed;
+            --theme-icon: '☀️';
+            /* ▼▼▼ NEW: Spotlight color for light mode ▼▼▼ */
+            --spotlight-color: rgba(0, 0, 0, 0.05);
+        }
+
+        body.dark-mode {
+            --bg-color: #1c2128;
+            --card-bg-color: #22272e;
+            --text-color: #cdd9e5;
+            --text-secondary-color: #90a0b1;
+            --accent-color: #40a2f5;
+            --accent-hover-color: #52a9f7;
+            --border-color: #373e47;
+            --shadow-color: rgba(10, 10, 10, 0.2);
+            --spinner-color: var(--accent-color);
+            --theme-toggle-bg: #373e47;
+            --theme-icon: '🌙';
+           
+            --spotlight-color: rgba(255, 255, 255, 0.07);
+        }
+
+       
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-color);
+            text-align: center;
+            padding: 2rem 1rem;
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
+
+         
+            --mouse-x: 50%;
+            --mouse-y: 50%;
+            
+            background: radial-gradient(
+                600px circle at var(--mouse-x) var(--mouse-y),
+                var(--spotlight-color),
+                transparent 40%
+            ), var(--bg-color);
+        }
+
+        main {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+
+        p {
+            color: var(--text-secondary-color);
+            margin-bottom: 1.5rem;
+        }
+
+        .card {
+            background-color: var(--card-bg-color);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px var(--shadow-color);
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s, border-color 0.3s;
+            position: relative; /* Needed for z-index to work */
+            z-index: 2; /* Ensures cards are on top of the background effect */
+        }
+        
+        /* 3. UI ELEMENT STYLES */
+        button, select {
+            font-size: 1rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            font-weight: 600;
+        }
+
+        select {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            margin-right: 0.5rem;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        
+        button:hover {
+            background-color: var(--accent-hover-color);
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: var(--text-secondary-color);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #recordBtn.recording {
+            background-color: var(--record-color);
+        }
+        #recordBtn.recording:hover {
+            background-color: var(--record-hover-color);
+        }
+
+        textarea {
+            width: 100%;
+            padding: 1rem;
+            margin-top: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+        }
+
+        audio {
+            margin-top: 1rem;
+            width: 100%;
+        }
+
+        /* 4. LOADER & THEME TOGGLE */
+        #loader {
+            display: none;
+            border: 6px solid var(--border-color);
+            border-top: 6px solid var(--spinner-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #theme-toggle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--theme-toggle-bg);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            padding: 0;
+            font-size: 1.5rem;
+            line-height: 1;
+            display: grid;
+            place-content: center;
+            z-index: 3;
+        }
+
+        #theme-toggle::before {
+            content: var(--theme-icon);
+        }
+    </style>
 </head>
 <body>
 
-<h1>CommUnique 🎤</h1>
-<p>Record your voice, get an instant transcription, and translate it into multiple languages with text-to-speech output.</p>
+    <main>
+        <header>
+            <h1>CommUnique 🎤</h1>
+            <button id="theme-toggle" aria-label="Toggle theme"></button>
+        </header>
+        <p>Record your voice and instantly get the translated text and speech in the language of your choice.</p>
+        
+        <section class="card">
+            <h2>1. Select Language & Record</h2>
+            <p>Choose your target language, then press the record button to begin.</p>
+            <div>
+                <select id="langSelect">
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="fr">French</option>
+                    <option value="es">Spanish</option>
+                    <option value="de">German</option>
+                    <option value="it">Italian</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="ta">Tamil</option>
+                    <option value="ru">Russian</option>
+                    <option value="ar">Arabic</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="bn">Bengali</option>
+                    <option value="tr">Turkish</option>
+                    <option value="vi">Vietnamese</option>
+                    <option value="pl">Polish</option>
+                    <option value="nl">Dutch</option>
+                </select>
+                <button id="recordBtn">Start Recording</button>
+            </div>
+            <div id="loader"></div>
+            <p id="status" style="margin-top: 1rem; min-height: 1.6em;"></p>
+        </section>
 
-<div class="card">
-<h2>1. Speak Your Voice</h2>
-<button id="recordBtn">Start Recording</button>
-<p id="status" style="margin-top: 10px;"></p>
-<audio id="audioPlayback" controls></audio>
-</div>
+        <section class="card">
+            <h2>2. Your Translation</h2>
+            <textarea id="translatedText" rows="4" placeholder="Translated text will appear here..." readonly></textarea>
+            <audio id="ttsAudio" controls></audio>
+        </section>
 
-<div class="card">
-<h2>2. Live Transcription</h2>
-<textarea id="transcript" rows="4" placeholder="Transcribed text will appear here..." readonly></textarea>
-</div>
-
-<div class="card">
-<h2>3. Translate & Generate Speech</h2>
-<select id="langSelect">
-  <option value="en">English</option>
-  <option value="hi">Hindi</option>
-  <option value="fr">French</option>
-  <option value="es">Spanish</option>
-  <option value="de">German</option>
-  <option value="it">Italian</option>
-  <option value="ja">Japanese</option>
-  <option value="ko">Korean</option>
-  <option value="ta">Tamil</option>
-  <option value="ru">Russian</option>
-  <option value="ar">Arabic</option>
-  <option value="pt">Portuguese</option>
-  <option value="bn">Bengali</option>
-  <option value="tr">Turkish</option>
-  <option value="vi">Vietnamese</option>
-  <option value="pl">Polish</option>
-  <option value="nl">Dutch</option>
-</select>
-<button id="ttsBtn" disabled>Generate Speech</button>
-<textarea id="translatedText" rows="4" placeholder="Translated text will appear here..." readonly style="margin-top:15px;"></textarea>
-<audio id="ttsAudio" controls></audio>
-</div>
-
-<script>
-const recordBtn = document.getElementById('recordBtn');
-const audioPlayback = document.getElementById('audioPlayback');
-const transcriptArea = document.getElementById('transcript');
-const langSelect = document.getElementById('langSelect');
-const ttsBtn = document.getElementById('ttsBtn');
-const ttsAudio = document.getElementById('ttsAudio');
-const statusDiv = document.getElementById('status');
-const translatedTextArea = document.getElementById('translatedText');
-
-let mediaRecorder;
-let audioChunks = [];
-
-async function handleRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        // Stop recording
-        mediaRecorder.stop();
-        recordBtn.textContent = "Start Recording";
-        recordBtn.classList.remove('recording');
-        statusDiv.textContent = "Processing audio...";
-    } else {
-        // Start recording
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = event => {
-                audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                const blob = new Blob(audioChunks, { type: 'audio/webm' });
-                audioPlayback.src = URL.createObjectURL(blob);
-
-                // --- Send for transcription ---
-                const formData = new FormData();
-                // ✅ CRITICAL FIX: Send a .webm file, which matches the blob's content
-                formData.append("file", blob, "voice.webm");
-
-                try {
-                    const resp = await fetch("/transcribe", { method: "POST", body: formData });
-                    if (!resp.ok) {
-                        const errorData = await resp.json();
-                        throw new Error(errorData.message || `Server error: ${resp.status}`);
-                    }
-                    const result = await resp.json();
-                    transcriptArea.value = result.text;
-                    statusDiv.textContent = "Transcription complete!";
-                    ttsBtn.disabled = !result.text; // Enable TTS button if text exists
-                } catch (error) {
-                    console.error("Transcription failed:", error);
-                    statusDiv.textContent = `Error: ${error.message}`;
-                    transcriptArea.value = "Failed to transcribe audio.";
-                    ttsBtn.disabled = true;
-                }
-            };
-
-            mediaRecorder.start();
-            recordBtn.textContent = "Stop Recording";
-            recordBtn.classList.add('recording');
-            statusDiv.textContent = "Recording...";
-            ttsBtn.disabled = true; // Disable TTS button while recording
-            transcriptArea.value = "";
-            translatedTextArea.value = "";
-        } catch (err) {
-            console.error("Error accessing microphone:", err);
-            statusDiv.textContent = "Error: Could not access microphone.";
-        }
-    }
-}
-
-async function handleTranslation() {
-    const text = transcriptArea.value.trim();
-    if (!text) {
-        alert("There is no text to translate!");
-        return;
-    }
-
-    const lang = langSelect.value;
-    const formData = new FormData();
-    formData.append("text", text);
-    formData.append("lang", lang);
+        <div class="card" style="display: none;">
+            <h2>Live Transcription (Hidden)</h2>
+            <textarea id="transcript" rows="4" readonly></textarea>
+        </div>
+    </main>
     
-    statusDiv.textContent = `Translating to ${langSelect.options[langSelect.selectedIndex].text}...`;
-    ttsBtn.disabled = true;
+    <script>
+      
+        const themeToggle = document.getElementById('theme-toggle');
+        
+        (function applySavedTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+            }
+        })();
 
-    try {
-        const resp = await fetch("/translate_tts", { method: "POST", body: formData });
-        if (!resp.ok) {
-            const errorData = await resp.json();
-            throw new Error(errorData.message || `Server error: ${resp.status}`);
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const currentTheme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
+            localStorage.setItem('theme', currentTheme);
+        });
+
+        window.addEventListener('mousemove', e => {
+            document.body.style.setProperty('--mouse-x', `${e.clientX}px`);
+            document.body.style.setProperty('--mouse-y', `${e.clientY}px`);
+        });
+        
+
+
+        // --- TRANSLATOR APP LOGIC ---
+        const recordBtn = document.getElementById('recordBtn');
+        const transcriptArea = document.getElementById('transcript');
+        const langSelect = document.getElementById('langSelect');
+        const ttsAudio = document.getElementById('ttsAudio');
+        const statusDiv = document.getElementById('status');
+        const translatedTextArea = document.getElementById('translatedText');
+        const loader = document.getElementById('loader');
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        async function handleRecording() {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                recordBtn.textContent = "Start Recording";
+                recordBtn.classList.remove('recording');
+            } else {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                        
+                        const formData = new FormData();
+                        formData.append("file", blob, "voice.webm");
+                        formData.append("lang", langSelect.value);
+
+                        loader.style.display = 'block';
+                        statusDiv.textContent = `Processing... this may take a moment.`;
+                        recordBtn.disabled = true;
+                        langSelect.disabled = true;
+
+                        try {
+                            const resp = await fetch("/process-audio", { method: "POST", body: formData });
+                            
+                            if (!resp.ok) {
+                                let errorMsg = `Server error: ${resp.status}`;
+                                try {
+                                    const errorData = await resp.json();
+                                    errorMsg = errorData.message || errorMsg;
+                                } catch (e) {
+                                    errorMsg = await resp.text();
+                                }
+                                throw new Error(errorMsg);
+                            }
+                            
+                            const result = await resp.json();
+                            
+                            translatedTextArea.value = result.translated_text; 
+                            ttsAudio.src = result.tts_url;
+                            transcriptArea.value = result.transcribed_text;
+                            statusDiv.textContent = "Translation complete!";
+
+                        } catch (error) {
+                            console.error("Processing failed:", error);
+                            statusDiv.textContent = `Error: ${error.message}`;
+                            translatedTextArea.value = "Failed to process audio.";
+                        } finally {
+                            loader.style.display = 'none';
+                            recordBtn.disabled = false;
+                            langSelect.disabled = false;
+                        }
+                    };
+
+                    mediaRecorder.start();
+                    recordBtn.textContent = "Stop Recording";
+                    recordBtn.classList.add('recording');
+                    statusDiv.textContent = "Recording...";
+                    translatedTextArea.value = "";
+                    transcriptArea.value = "";
+                    ttsAudio.src = "";
+                } catch (err) {
+                    console.error("Error accessing microphone:", err);
+                    statusDiv.textContent = "Error: Could not access microphone.";
+                }
+            }
         }
-        const result = await resp.json();
-        // ✨ NEW: Display the translated text returned from the server
-        translatedTextArea.value = result.translated_text; 
-        ttsAudio.src = result.tts_url;
-        statusDiv.textContent = "Translation and speech generation complete!";
-    } catch (error) {
-        console.error("Translation/TTS failed:", error);
-        statusDiv.textContent = `Error: ${error.message}`;
-        translatedTextArea.value = "Failed to translate text.";
-    } finally {
-        ttsBtn.disabled = false; // Re-enable button
-    }
-}
 
-recordBtn.addEventListener('click', handleRecording);
-ttsBtn.addEventListener('click', handleTranslation);
-</script>
-
+        recordBtn.addEventListener('click', handleRecording);
+    </script>
 </body>
 </html>
