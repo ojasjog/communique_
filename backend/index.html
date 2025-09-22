@@ -19,7 +19,7 @@
             --shadow-color: rgba(44, 62, 80, 0.1);
             --spinner-color: var(--accent-color);
             --theme-toggle-bg: #e1e8ed;
-            --theme-icon: '☀️';
+            --theme-icon: '💡';
             /* ▼▼▼ NEW: Spotlight color for light mode ▼▼▼ */
             --spotlight-color: rgba(0, 0, 0, 0.05);
         }
@@ -35,7 +35,7 @@
             --shadow-color: rgba(10, 10, 10, 0.2);
             --spinner-color: var(--accent-color);
             --theme-toggle-bg: #373e47;
-            --theme-icon: '🌙';
+            --theme-icon: '🌕';
            
             --spotlight-color: rgba(255, 255, 255, 0.07);
         }
@@ -161,6 +161,8 @@
         audio {
             margin-top: 1rem;
             width: 100%;
+            border-radius: 200px;
+            background-color: var(--bg-color);
         }
 
         /* 4. LOADER & THEME TOGGLE */
@@ -205,13 +207,14 @@
 
     <main>
         <header>
-            <h1>CommUnique 🎤</h1>
+            <h1>CommUnique 🎧</h1>
             <button id="theme-toggle" aria-label="Toggle theme"></button>
         </header>
+        <h2>Made by the community , for the community</h2>
         <p>Record your voice and instantly get the translated text and speech in the language of your choice.</p>
         
         <section class="card">
-            <h2>1. Select Language & Record</h2>
+            <h2>1. Select your preferred Language & Record</h2>
             <p>Choose your target language, then press the record button to begin.</p>
             <div>
                 <select id="langSelect">
@@ -234,13 +237,15 @@
                     <option value="nl">Dutch</option>
                 </select>
                 <button id="recordBtn">Start Recording</button>
+                <!-- <div id="progressBar"></div> -->
             </div>
             <div id="loader"></div>
+            <p id="stopwatch" style="font-weight: bold; margin-top: 1rem;"></p>
             <p id="status" style="margin-top: 1rem; min-height: 1.6em;"></p>
         </section>
 
         <section class="card">
-            <h2>2. Your Translation</h2>
+            <h2>2. Your Translated speech</h2>
             <textarea id="translatedText" rows="4" placeholder="Translated text will appear here..." readonly></textarea>
             <audio id="ttsAudio" controls></audio>
         </section>
@@ -276,89 +281,111 @@
 
 
         // --- TRANSLATOR APP LOGIC ---
-        const recordBtn = document.getElementById('recordBtn');
-        const transcriptArea = document.getElementById('transcript');
-        const langSelect = document.getElementById('langSelect');
-        const ttsAudio = document.getElementById('ttsAudio');
-        const statusDiv = document.getElementById('status');
-        const translatedTextArea = document.getElementById('translatedText');
-        const loader = document.getElementById('loader');
+// --- TRANSLATOR APP LOGIC ---
+const recordBtn = document.getElementById('recordBtn');
+const transcriptArea = document.getElementById('transcript');
+const langSelect = document.getElementById('langSelect');
+const ttsAudio = document.getElementById('ttsAudio');
+const statusDiv = document.getElementById('status');
+const translatedTextArea = document.getElementById('translatedText');
+const loader = document.getElementById('loader');
+const stopwatchDisplay = document.getElementById('stopwatch'); // Stopwatch display element
 
-        let mediaRecorder;
-        let audioChunks = [];
+let mediaRecorder;
+let audioChunks = [];
+let stopwatchInterval; // Interval for the stopwatch
+let seconds = 0; // Tracks stopwatch time
 
-        async function handleRecording() {
-            if (mediaRecorder && mediaRecorder.state === "recording") {
-                mediaRecorder.stop();
+// Function to start the stopwatch
+function startStopwatch() {
+    seconds = 0;
+    stopwatchDisplay.textContent = '00:00';
+
+    stopwatchInterval = setInterval(() => {
+        seconds++;
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        const formattedTime = `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        stopwatchDisplay.textContent = formattedTime;
+    }, 1000);
+}
+
+async function handleRecording() {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+    } else {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+
+            mediaRecorder.onstop = async () => {
+                if (stopwatchInterval) clearInterval(stopwatchInterval); // Clear the stopwatch
                 recordBtn.textContent = "Start Recording";
                 recordBtn.classList.remove('recording');
-            } else {
+                //stopwatchDisplay.textContent = ''; // Clear the stopwatch display
+
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+
+                const formData = new FormData();
+                formData.append("file", blob, "voice.webm");
+                formData.append("lang", langSelect.value);
+
+                loader.style.display = 'block';
+                statusDiv.textContent = `Processing... this may take a moment.`;
+                recordBtn.disabled = true;
+                langSelect.disabled = true;
+
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-                    audioChunks = [];
+                    const resp = await fetch("/process-audio", { method: "POST", body: formData });
 
-                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-
-                    mediaRecorder.onstop = async () => {
-                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
-                        
-                        const formData = new FormData();
-                        formData.append("file", blob, "voice.webm");
-                        formData.append("lang", langSelect.value);
-
-                        loader.style.display = 'block';
-                        statusDiv.textContent = `Processing... this may take a moment.`;
-                        recordBtn.disabled = true;
-                        langSelect.disabled = true;
-
+                    if (!resp.ok) {
+                        let errorMsg = `Server error: ${resp.status}`;
                         try {
-                            const resp = await fetch("/process-audio", { method: "POST", body: formData });
-                            
-                            if (!resp.ok) {
-                                let errorMsg = `Server error: ${resp.status}`;
-                                try {
-                                    const errorData = await resp.json();
-                                    errorMsg = errorData.message || errorMsg;
-                                } catch (e) {
-                                    errorMsg = await resp.text();
-                                }
-                                throw new Error(errorMsg);
-                            }
-                            
-                            const result = await resp.json();
-                            
-                            translatedTextArea.value = result.translated_text; 
-                            ttsAudio.src = result.tts_url;
-                            transcriptArea.value = result.transcribed_text;
-                            statusDiv.textContent = "Translation complete!";
-
-                        } catch (error) {
-                            console.error("Processing failed:", error);
-                            statusDiv.textContent = `Error: ${error.message}`;
-                            translatedTextArea.value = "Failed to process audio.";
-                        } finally {
-                            loader.style.display = 'none';
-                            recordBtn.disabled = false;
-                            langSelect.disabled = false;
+                            const errorData = await resp.json();
+                            errorMsg = errorData.message || errorMsg;
+                        } catch (e) {
+                            errorMsg = await resp.text();
                         }
-                    };
+                        throw new Error(errorMsg);
+                    }
 
-                    mediaRecorder.start();
-                    recordBtn.textContent = "Stop Recording";
-                    recordBtn.classList.add('recording');
-                    statusDiv.textContent = "Recording...";
-                    translatedTextArea.value = "";
-                    transcriptArea.value = "";
-                    ttsAudio.src = "";
-                } catch (err) {
-                    console.error("Error accessing microphone:", err);
-                    statusDiv.textContent = "Error: Could not access microphone.";
+                    const result = await resp.json();
+
+                    translatedTextArea.value = result.translated_text;
+                    ttsAudio.src = result.tts_url;
+                    transcriptArea.value = result.transcribed_text;
+                    statusDiv.textContent = "Translation complete!";
+
+                } catch (error) {
+                    console.error("Processing failed:", error);
+                    statusDiv.textContent = `Error: ${error.message}`;
+                    translatedTextArea.value = "Failed to process audio.";
+                } finally {
+                    loader.style.display = 'none';
+                    recordBtn.disabled = false;
+                    langSelect.disabled = false;
                 }
-            }
-        }
+            };
 
-        recordBtn.addEventListener('click', handleRecording);
+            mediaRecorder.start();
+            startStopwatch(); // Start the stopwatch
+            recordBtn.textContent = "Stop Recording";
+            recordBtn.classList.add('recording');
+            statusDiv.textContent = "Recording...";
+            translatedTextArea.value = "";
+            transcriptArea.value = "";
+            ttsAudio.src = "";
+        } catch (err) {
+            console.error("Error accessing microphone:", err);
+            statusDiv.textContent = "Error: Could not access microphone.";
+        }
+    }
+}
+
+recordBtn.addEventListener('click', handleRecording);
     </script>
 </body>
 </html>
